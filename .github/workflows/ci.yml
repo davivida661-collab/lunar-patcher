@@ -47,7 +47,7 @@ jobs:
     - uses: mozilla-actions/sccache-action@v0.0.11
 
     - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v4
+      uses: gradle/actions/setup-gradle@v5
 
     - name: Build with Gradle
       # bash is available on all three OSes; on Windows pwsh may not resolve
