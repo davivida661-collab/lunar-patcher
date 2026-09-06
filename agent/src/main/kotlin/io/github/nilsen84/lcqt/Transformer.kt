@@ -5,7 +5,6 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.tree.ClassNode
 import java.lang.instrument.ClassFileTransformer
 import java.security.ProtectionDomain
-import kotlin.system.exitProcess
 
 class Transformer(private val patches: List<Patch>): ClassFileTransformer {
     override fun transform(
@@ -27,7 +26,11 @@ class Transformer(private val patches: List<Patch>): ClassFileTransformer {
         cn.accept(cw)
         return cw.toByteArray()
     }.getOrElse {
+        // Previously a failing patch killed the whole JVM via exitProcess(1).
+        // Log and skip the transformation instead - a broken patch should never
+        // take the game down.
+        System.err.println("[LCQT] Failed to transform $className:")
         it.printStackTrace()
-        exitProcess(1)
+        null
     }
 }

@@ -3,16 +3,20 @@
     import {onMount} from "svelte";
     import { config, type Config } from "../config";
 
+    type ToggleKey = { [K in keyof Config]: Config[K] extends boolean ? K : never }[keyof Config]
+    type StringKey = { [K in keyof Config]: Config[K] extends string ? K : never }[keyof Config]
+    type NumberKey = { [K in keyof Config]: Config[K] extends number ? K : never }[keyof Config]
+
     type TextSetting = {
         type: 'text';
-        key: keyof Config;
+        key: StringKey;
         name: string;
         placeholder: string
     }
 
     type SliderSetting = {
         type: 'slider';
-        key: keyof Config;
+        key: NumberKey;
         name: string;
         min: number
         max: number
@@ -25,7 +29,7 @@
 
     type Module = {
         name: string
-        key: keyof Config
+        key: ToggleKey
         settings?: Setting[]
     }
 
@@ -80,7 +84,7 @@
         }
     ]
 
-    let selectedModule = null
+    let selectedModule: Module | null = null
 
     onMount(() => {
         const controller = new AbortController()

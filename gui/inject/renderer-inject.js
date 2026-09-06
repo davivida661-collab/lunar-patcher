@@ -2,14 +2,16 @@ import syringe from './syringe.svg'
 
 function waitForElement(selector) {
     return new Promise(resolve => {
-        if(document.querySelector(selector)) {
-            return resolve(document.querySelector(selector))
+        const existing = document.querySelector(selector)
+        if (existing) {
+            return resolve(existing)
         }
 
         const observer = new MutationObserver(() => {
-            if(document.querySelector(selector)) {
-                resolve(document.querySelector(selector))
+            const el = document.querySelector(selector)
+            if (el) {
                 observer.disconnect()
+                resolve(el)
             }
         })
 
@@ -20,13 +22,19 @@ function waitForElement(selector) {
     })
 }
 
-waitForElement(".fa-gears").then(faGears => {
-    let settingsButton = faGears.parentNode
+waitForElement('.fa-gears').then(faGears => {
+    const settingsButton = faGears.parentNode
+    if (!settingsButton) return
+
+    // Avoid injecting a duplicate syringe button if the settings page re-renders
+    if (document.getElementById('lcqt-syringe-button')) return
 
     let clone = settingsButton.cloneNode(false)
-    clone.id = null
-    clone.innerHTML = `<img src='${syringe}' width="30" alt="lcqt"/>`
+    clone.id = 'lcqt-syringe-button'
+    clone.innerHTML = `<img src='${syringe}' width='30' alt='lcqt'/>`
     clone.addEventListener('click', () => window.electron.ipcRenderer.sendMessage('LCQT_OPEN_WINDOW'))
 
     settingsButton.parentNode.insertBefore(clone, settingsButton)
+}).catch(() => {
+    // Never let injection errors surface to the launcher UI
 })

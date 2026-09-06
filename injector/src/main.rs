@@ -1,5 +1,4 @@
 #![feature(try_blocks)]
-#![feature(result_option_inspect)]
 #![allow(dead_code)]
 
 use std::env;
@@ -62,6 +61,12 @@ fn wait_for_websocket_url(stream: impl Read) -> io::Result<String> {
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
+    let current_exe = env::current_exe()
+        .map_err(|e| format!("failed to resolve current executable: {e}"))?
+        .parent()
+        .map(|p| p.to_path_buf())
+        .ok_or("current executable has no parent directory")?;
+
     let lunar_exe = match env::args().nth(1) {
         Some(arg) => arg,
         _ => find_lunar_executable()
@@ -93,7 +98,8 @@ fn run() -> Result<(), Box<dyn Error>> {
 
         let payload = format!(
             "require(`${{{}}}/gui.asar/main-inject.js`)()",
-            serde_json::to_string(env::current_exe()?.parent().unwrap())?
+            serde_json::to_string(&current_exe)
+                .map_err(|e| format!("failed to serialize install path: {e}"))?
         );
 
         debugger.send(1, "Debugger.enable", json!({}))?;
@@ -118,8 +124,8 @@ fn run() -> Result<(), Box<dyn Error>> {
                 }
                 ref r @ Response::Response { id, ref error, .. } => {
                     println!("{:?}", r);
-                    if error.is_some() {
-                        Err("CDP Error")?
+                    if let Some(err) = error {
+                        Err(format!("CDP error {}: {}", err.code, err.message))?
                     }
                     if id == 4 {
                         break;
@@ -130,21 +136,23 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
     };
 
-    if let Err(_) = res {
+    if res.is_err() {
         let _ = cp.kill();
     }
 
-    res
+    res.map_err(Into::into)
 }
 
 fn main() {
     if cfg!(windows) {
         println!("[LCQT] Attempting to kill lunar");
-        _ = Command::new("taskkill.exe")
+        if let Err(e) = Command::new("taskkill.exe")
             .args(["/im", "Lunar Client.exe", "/f"])
             .stdin(Stdio::null())
             .status()
-            .inspect_err(|e| eprintln!("[error] failed to start taskkill.exe: {e}"));
+        {
+            eprintln!("[error] failed to start taskkill.exe: {e}");
+        }
     }
 
     if let Err(e) = run() {

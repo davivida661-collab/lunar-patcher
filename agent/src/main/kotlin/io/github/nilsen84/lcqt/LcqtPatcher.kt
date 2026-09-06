@@ -12,11 +12,16 @@ object LcqtPatcher {
     @get:JvmName("configDir")
     val configDir = getConfigDir()
 
-    val config: Config = try {
-        JSON.decodeFromString(configDir.resolve("config.json").readText())
-    } catch (e: FileNotFoundException) {
-        e.printStackTrace()
-        Config()
+    val config: Config by lazy {
+        try {
+            JSON.decodeFromString<Config>(configDir.resolve("config.json").readText())
+        } catch (e: FileNotFoundException) {
+            Config()
+        } catch (e: Exception) {
+            // A malformed config.json must never prevent the game from launching.
+            System.err.println("[LCQT] Failed to parse config.json, using defaults: $e")
+            Config()
+        }
     }
 
     @JvmStatic

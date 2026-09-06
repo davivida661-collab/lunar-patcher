@@ -26,6 +26,12 @@ module.exports = function() {
     const fs = require('fs')
     const https = require('https')
     const { app, dialog, shell, BrowserWindow, ipcMain } = require('electron')
+
+    const JVM_BINARIES = ['javaw', 'java']
+
+    function safeUnwrapError(e) {
+        return e instanceof Error ? e.message : String(e)
+    }
     const semver = require('semver')
     const parse = require('shell-quote/parse')
 
@@ -70,7 +76,7 @@ module.exports = function() {
     )
 
     let configDir = path.join(app.getPath('appData'), 'lcqt2')
-    if(!fs.existsSync(configDir)) fs.mkdirSync(configDir)
+    if(!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true })
     let configPath = path.join(configDir, 'config.json')
 
     function readConfigSync() {
@@ -86,15 +92,22 @@ module.exports = function() {
     })
 
     ipcMain.on('LCQT_WRITE_CONFIG', async (event, config) => {
-        await fs.promises.writeFile(
-            configPath,
-            JSON.stringify(config, null, 4),
-            'utf8'
-        )
+        if (!config || typeof config !== 'object') return
+
+        try {
+            await fs.promises.writeFile(
+                configPath,
+                JSON.stringify(config, null, 4),
+                'utf8'
+            )
+        } catch (e) {
+            console.error('[LCQT] failed to write config:', safeUnwrapError(e))
+        }
     })
 
     ipcMain.on('LCQT_OPEN_WINDOW', event => {
         let mainWin = BrowserWindow.fromWebContents(event.sender)
+        if (!mainWin) return
 
         let window = new BrowserWindow({
             parent: mainWin,
@@ -118,13 +131,15 @@ module.exports = function() {
     })
 
     cp.spawn = (cmd, args, opts) => {
-        if(!['javaw', 'java'].includes(path.basename(cmd, '.exe'))) {
+        if(!JVM_BINARIES.includes(path.basename(String(cmd), '.exe'))) {
             return originalSpawn(cmd, args, opts)
         }
 
         let config = readConfigSync()
 
-        args = args.filter(e => e !== '-XX:+DisableAttachMechanism');
+        args = (Array.isArray(args) ? args : []).filter(e => e !== '-XX:+DisableAttachMechanism');
+        opts = {...opts}
+        opts.env = {...(opts?.env ?? process.env)}
         delete opts.env['_JAVA_OPTIONS'];
         delete opts.env['JAVA_TOOL_OPTIONS'];
         delete opts.env['JDK_JAVA_OPTIONS'];
@@ -141,10 +156,15 @@ module.exports = function() {
             args.push('--username', config.crackedUsername)
         }
 
-        return originalSpawn(
-            config.customJvmEnabled && config.customJvm || cmd,
-            args,
-            opts
-        )
+        // 'enabled && customJvm' yields '' when the toggle is on but no path is
+        // configured, which Node rejects with an invalid-args TypeError.
+        const executable = (config.customJvmEnabled && config.customJvm) || cmd
+
+        try {
+            return originalSpawn(executable, args, opts)
+        } catch (e) {
+            console.error('[LCQT] failed to launch java:', safeUnwrapError(e))
+            throw e
+        }
     }
 }
