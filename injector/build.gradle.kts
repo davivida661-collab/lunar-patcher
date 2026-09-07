@@ -10,9 +10,11 @@ val os: OperatingSystem by rootProject.extra
 val buildType = Attribute.of("buildType", String::class.java)
 
 listOf("debug", "release").forEach { config ->
+    val cargoBin = providers.environmentVariable("HOME").map { it + "/.cargo/bin/cargo" }.orElse("cargo").get()
+
     val buildTask = tasks.register("compile${config.capitalized()}", Exec::class) {
         group = "build"
-        commandLine("cargo", "build")
+        commandLine(cargoBin, "build")
         if(config == "release") args("--release")
         outputs.file(os.getExecutableName("target/$config/injector"))
         outputs.upToDateWhen { false }

@@ -21,8 +21,10 @@ val buildGui by tasks.registering(Exec::class) {
     group = "build"
     commandLine(npm, "run", "build")
 
-    //recompile if tag changes
-    inputs.dir("../.git/refs/tags")
+    //recompile if tag changes.
+    // Don't treat a missing VCS tags directory as a hard task-configuration error;
+    // only invalidate the build when the tags directory actually exist.
+    inputs.dir("../.git/refs/tags").skipWhenEmpty()
     inputs.dir("src")
     inputs.dir("inject")
     inputs.dir("node_modules")
@@ -37,6 +39,8 @@ val buildGui by tasks.registering(Exec::class) {
     )
 
     outputs.dir("out")
+    outputs.file("package-lock.json")
+    outputs.dir("node_modules")
 }
 
 tasks.clean {

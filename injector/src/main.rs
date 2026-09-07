@@ -44,7 +44,7 @@ fn find_lunar_executable() -> Result<String, String> {
             }
             err
         })
-        .map(|p| p.clone())
+        .cloned()
 }
 
 fn wait_for_websocket_url(stream: impl Read) -> io::Result<String> {
